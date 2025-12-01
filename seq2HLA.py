@@ -1,3 +1,5 @@
+#!/usr/bin/env python2.7
+# -*- coding: utf-8 -*-
 ##########################################################################################################
 #Title:
 #seq2HLA - HLA typing from RNA-Seq sequence reads
@@ -82,6 +84,7 @@ from optparse import OptionParser
 import fourdigits
 import gzip
 import subprocess
+import multiprocessing
 
 #These variables need to be global, as they are filled and used by different modules
 readcount={}
@@ -89,7 +92,7 @@ readspergroup={}
 allelesPerLocus={}
 version="2.2."
 
-def main(runName,readFile1,readFile2,fastaClassI,fastaClassII,bowtiebuildClassI,bowtiebuildClassII,trim3,threads):
+def main(runName,readFile1,readFile2,fastaClassI,fastaClassII,bowtiebuildClassI,bowtiebuildClassII,trim3,threads, run_mode = "both"):
 	#print version number
 	print "Now running seq2HLA version "+str(version)+"!"
 	#determine if input is uncompressed or gzipped fastq files and determine number of lines (important for expression calculation
@@ -120,12 +123,35 @@ def main(runName,readFile1,readFile2,fastaClassI,fastaClassII,bowtiebuildClassI,
 	#concatenate mapping parameiters
 	mapopt="-p "+str(threads)+" -a -v"+str(mismatch)
 	print "The read length of your input fastq was determined to be "+str(int(readlength))+", so "+str(mismatch)+" mismatches will be allowed and "+str(threads)+" threads will be used by bowtie."
-	
-	#call HLA typing for Class I
-	mainClassI(runName+"-ClassI",readFile1,readFile2,bowtiebuildClassI,fastaClassI,mapopt,trim3,gzipped)
-	#call HLA typing for Class II
-	mainClassII(runName+"-ClassII",readFile1,readFile2,bowtiebuildClassII,fastaClassII,mapopt,trim3,gzipped)	
 
+	if run_mode == "classI":
+		#call HLA typing for Class I
+		mainClassI(runName+"-ClassI",readFile1,readFile2,bowtiebuildClassI,fastaClassI,mapopt,trim3,gzipped)
+	elif run_mode == "classII":
+		#call HLA typing for Class II
+		mainClassII(runName+"-ClassII",readFile1,readFile2,bowtiebuildClassII,fastaClassII,mapopt,trim3,gzipped)
+	elif run_mode == "both":
+		# 创建进程
+		process_classI = multiprocessing.Process(
+			target=mainClassI,
+			args=(runName + "-ClassI", readFile1, readFile2, bowtiebuildClassI, fastaClassI, mapopt, trim3, gzipped)
+		)
+
+		process_classII = multiprocessing.Process(
+			target=mainClassII,
+			args=(runName + "-ClassII", readFile1, readFile2, bowtiebuildClassII, fastaClassII, mapopt, trim3, gzipped)
+		)
+		# 启动进程
+		process_classI.start()
+		process_classII.start()
+
+		# 等待两个进程完成
+		process_classI.join()
+		process_classII.join()
+
+		print "Both Class I and Class II HLA typing completed!"
+	else:
+		raise ValueError("Run mode must be either 'both' or 'classI', 'classII'")
 #---------------Class I-------------------------------
 def mainClassI(runName,readFile1,readFile2,bowtiebuild,hla1fasta,mapopt,trim3,gzip):
 	#-------1st iteration-----------------------------------
@@ -1339,7 +1365,7 @@ if __name__ == '__main__':
 			dest="trim3",
 			default="0",
 			help="Bowtie option: -3 <int> trims <int> bases from the low quality 3' end of each read. Default: 0")
-
+	parser.add_option("-m","--run_mode",action="store",dest="run_mode",default="both",help = "Run mode ['classI', 'classII', or 'both' ]. Default: both")
 
 	(options, args) = parser.parse_args()
 	if not options.readFile1:   
@@ -1357,6 +1383,7 @@ if __name__ == '__main__':
 	fastaClassII=os.path.abspath(os.path.dirname(sys.argv[0]))+"/references/HLA2.ex2.plus75.fasta"
 	trim3=str(options.trim3)
 	threads=str(options.threads)
-	main(runName,readFile1,readFile2,fastaClassI,fastaClassII,bowtiebuildClassI,bowtiebuildClassII,trim3,threads)
+	run_mode=str(options.run_mode)
+	main(runName,readFile1,readFile2,fastaClassI,fastaClassII,bowtiebuildClassI,bowtiebuildClassII,trim3,threads, run_mode=run_mode)
 
 
