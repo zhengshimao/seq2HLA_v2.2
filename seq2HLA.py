@@ -85,6 +85,7 @@ import fourdigits
 import gzip
 import subprocess
 import multiprocessing
+import math
 
 #These variables need to be global, as they are filled and used by different modules
 readcount={}
@@ -121,7 +122,14 @@ def main(runName,readFile1,readFile2,fastaClassI,fastaClassII,bowtiebuildClassI,
                 else:
                         mismatch=3
 	#concatenate mapping parameiters
+	##- 当启用双模式时，改为指定的线程为总线程数
+	if run_mode == "both":
+		if int(threads) > 1:
+			threads=math.floor(int(threads)/2)
+		else:
+			threads=1
 	mapopt="-p "+str(threads)+" -a -v"+str(mismatch)
+
 	print "The read length of your input fastq was determined to be "+str(int(readlength))+", so "+str(mismatch)+" mismatches will be allowed and "+str(threads)+" threads will be used by bowtie."
 
 	if run_mode == "classI":
